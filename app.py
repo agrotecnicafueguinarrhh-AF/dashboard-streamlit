@@ -6,39 +6,37 @@ st.set_page_config(page_title="Dashboard Personal Eventual", layout="wide")
 
 URL_KPIS = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=0"
 URL_DATOS = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=1321247605"
-URL_SEGUIMIENTO = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=1937869204"
 
 st.markdown("""
 <style>
-.stApp {
-    background: #f4f1f8;
-}
-.block-container {
-    padding-top: 2rem;
-    padding-left: 3rem;
-    padding-right: 3rem;
-}
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #25164f, #3d2b6f);
-}
-[data-testid="stSidebar"] * {
-    color: white;
-}
+.stApp { background: #f4f1f8; }
+.block-container { padding-top: 2rem; padding-left: 3rem; padding-right: 3rem; }
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #25164f, #3d2b6f); }
+[data-testid="stSidebar"] * { color: white; }
+
 .titulo {
     font-size: 38px;
     font-weight: 900;
     color: #25164f;
-    margin-bottom: 0px;
 }
 .subtitulo {
     color: #5f5870;
     font-size: 15px;
     margin-bottom: 25px;
 }
+.seccion {
+    font-size: 22px;
+    font-weight: 900;
+    color: #25164f;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    padding-bottom: 6px;
+    border-bottom: 3px solid #39a96b;
+}
 .card {
     background: white;
     border-radius: 18px;
-    padding: 18px 20px;
+    padding: 18px;
     min-height: 125px;
     box-shadow: 0px 4px 18px rgba(37, 22, 79, 0.12);
     border-bottom: 5px solid #39a96b;
@@ -48,7 +46,7 @@ st.markdown("""
     font-size: 13px;
     font-weight: 800;
     color: #25164f;
-    min-height: 38px;
+    min-height: 42px;
 }
 .card-value {
     font-size: 34px;
@@ -63,13 +61,6 @@ st.markdown("""
     box-shadow: 0px 4px 18px rgba(37, 22, 79, 0.10);
     margin-bottom: 18px;
 }
-.seccion {
-    font-size: 18px;
-    font-weight: 900;
-    color: #25164f;
-    margin-top: 20px;
-    margin-bottom: 10px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,11 +68,9 @@ st.markdown("""
 def cargar_datos():
     kpis = pd.read_csv(URL_KPIS).dropna(how="all")
     datos = pd.read_csv(URL_DATOS).dropna(how="all")
-    seguimiento = pd.read_csv(URL_SEGUIMIENTO).dropna(how="all")
 
     kpis.columns = kpis.columns.astype(str).str.strip()
     datos.columns = datos.columns.astype(str).str.strip()
-    seguimiento.columns = seguimiento.columns.astype(str).str.strip()
 
     datos = datos.rename(columns={
         "Presto Servicio": "Prestó Servicio",
@@ -92,12 +81,29 @@ def cargar_datos():
         "Motivo de Cobertura": "Motivo de cobertura"
     })
 
-    return kpis, datos, seguimiento
+    return kpis, datos
 
-kpis, datos, seguimiento = cargar_datos()
+kpis, datos = cargar_datos()
 
 st.markdown('<div class="titulo">📊 Dashboard Personal Eventual</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitulo">Control interno de jornales, cobertura, desempeño y seguimiento de personal eventual</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitulo">Control interno de jornales, servicios, cobertura y complementos</div>', unsafe_allow_html=True)
+
+col_indicador = next((c for c in kpis.columns if "indicador" in c.lower()), None)
+col_resultado = next((c for c in kpis.columns if "resultado" in c.lower()), None)
+col_porcentaje = next((c for c in kpis.columns if "%" in c.lower() or "porcentaje" in c.lower()), None)
+
+if col_indicador is None or col_resultado is None:
+    st.error("No encontré las columnas Indicador y Resultado en la Hoja 1.")
+    st.write(list(kpis.columns))
+    st.stop()
+
+kpis[col_indicador] = kpis[col_indicador].astype(str).str.strip()
+
+def buscar_valor(nombre):
+    fila = kpis[kpis[col_indicador].str.lower() == nombre.lower()]
+    if not fila.empty:
+        return fila.iloc[0][col_resultado]
+    return "-"
 
 # =========================
 # FILTROS
@@ -137,218 +143,177 @@ if "Apellido y Nombre" in df.columns:
         df = df[df["Apellido y Nombre"].astype(str).str.contains(buscar, case=False, na=False)]
 
 # =========================
-# KPIS EN CUADRITOS
+# RESUMEN EJECUTIVO
 # =========================
 
-st.markdown('<div class="seccion">Resumen ejecutivo</div>', unsafe_allow_html=True)
+st.markdown('<div class="seccion">RESUMEN EJECUTIVO</div>', unsafe_allow_html=True)
 
-col_indicador = next((c for c in kpis.columns if "indicador" in c.lower()), None)
-col_resultado = next((c for c in kpis.columns if "resultado" in c.lower()), None)
+resumen = [
+    "Jornales Solicitados MENSUAL",
+    "Jornales Informados GG",
+    "Jornales Validados",
+    "Diferencia",
+    "Dobles Jornadas",
+    "Triples Jornadas",
+    "Jornales Extras (Doble + Triple)",
+    "Personal Observado",
+    "Personal No Recomendado",
+    "Cobertura Real (%)",
+    "Total complementos a pagar"
+]
 
-if col_indicador and col_resultado:
-    kpis_mostrar = kpis[[col_indicador, col_resultado]].dropna()
+cols_por_fila = 4
 
-    cols_por_fila = 5
+for i in range(0, len(resumen), cols_por_fila):
+    cols = st.columns(cols_por_fila)
+    fila = resumen[i:i + cols_por_fila]
 
-    for i in range(0, len(kpis_mostrar), cols_por_fila):
-        cols = st.columns(cols_por_fila)
-        fila = kpis_mostrar.iloc[i:i + cols_por_fila]
-
-        for col, (_, row) in zip(cols, fila.iterrows()):
-            indicador = str(row[col_indicador])
-            resultado = row[col_resultado]
-
-            with col:
-                st.markdown(f"""
-                <div class="card">
-                    <div class="card-title">{indicador}</div>
-                    <div class="card-value">{resultado}</div>
-                </div>
-                """, unsafe_allow_html=True)
-else:
-    st.error("No encontré las columnas Indicador y Resultado en la Hoja 1.")
+    for col, indicador in zip(cols, fila):
+        with col:
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">{indicador}</div>
+                <div class="card-value">{buscar_valor(indicador)}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =========================
-# GRÁFICOS
+# SERVICIOS
 # =========================
 
-st.markdown('<div class="seccion">Análisis visual</div>', unsafe_allow_html=True)
+st.markdown('<div class="seccion">SERVICIOS</div>', unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
+servicios = [
+    "% Barrido Manual",
+    "% Barrido Mecanico",
+    "% Chofer de Recoleccion",
+    "% Chofer Traslado de Personal",
+    "% Peon de Recoleccion",
+    "% Imbornales",
+    "% Espacio Verde Publico",
+    "% Limpieza de Canales",
+    "% Corte de Cesped",
+    "% Areas Turisticas",
+    "% Mantenimiento",
+    "% IASA",
+    "% Maquinista",
+    "% Relleno San Javier"
+]
 
-with col1:
-    if "Prestó Servicio" in df.columns:
+datos_servicios = []
+
+for servicio in servicios:
+    fila = kpis[kpis[col_indicador].str.lower() == servicio.lower()]
+    if not fila.empty:
+        cantidad = fila.iloc[0][col_resultado]
+        porcentaje = fila.iloc[0][col_porcentaje] if col_porcentaje else ""
+        datos_servicios.append({
+            "Servicio": servicio.replace("% ", ""),
+            "Cantidad": cantidad,
+            "%": porcentaje
+        })
+
+df_servicios = pd.DataFrame(datos_servicios)
+
+if not df_servicios.empty:
+    df_servicios["Cantidad_num"] = pd.to_numeric(df_servicios["Cantidad"], errors="coerce").fillna(0)
+
+    col_graf, col_tabla = st.columns([2, 1])
+
+    with col_graf:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-
-        graf = df["Prestó Servicio"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-        graf.columns = ["Estado", "Cantidad"]
-
         fig = px.pie(
-            graf,
-            names="Estado",
-            values="Cantidad",
-            hole=0.55,
-            title="Prestó Servicio",
-            color_discrete_sequence=["#39a96b", "#7e57c2", "#bdbdbd"]
+            df_servicios,
+            names="Servicio",
+            values="Cantidad_num",
+            hole=0.45,
+            title="Distribución de servicios"
         )
-
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             font_color="#25164f"
         )
-
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-with col2:
-    if "Jornal" in df.columns:
+    with col_tabla:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-
-        graf = df["Jornal"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-        graf.columns = ["Jornal", "Cantidad"]
-
-        fig = px.bar(
-            graf,
-            x="Jornal",
-            y="Cantidad",
-            text="Cantidad",
-            title="Tipo de jornal",
-            color_discrete_sequence=["#39a96b"]
+        st.dataframe(
+            df_servicios[["Servicio", "Cantidad", "%"]],
+            use_container_width=True,
+            hide_index=True
         )
-
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font_color="#25164f"
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
+else:
+    st.warning("No encontré los indicadores de servicios en la Hoja 1.")
 
-col3, col4 = st.columns(2)
+# =========================
+# MOTIVO DE COBERTURA
+# =========================
 
-with col3:
-    if "Turno" in df.columns:
-        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="seccion">MOTIVO DE COBERTURA</div>', unsafe_allow_html=True)
 
-        graf = df["Turno"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-        graf.columns = ["Turno", "Cantidad"]
+motivos = [
+    "Vacaciones",
+    "Ausencia No Programada",
+    "Enfermedad",
+    "ART",
+    "Franco",
+    "Suspensión",
+    "Suspension",
+    "Otros"
+]
 
-        fig = px.bar(
-            graf,
-            x="Turno",
-            y="Cantidad",
-            text="Cantidad",
-            title="Distribución por turno",
-            color_discrete_sequence=["#7e57c2"]
-        )
-
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font_color="#25164f"
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-with col4:
-    if "Categoría" in df.columns:
-        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-
-        graf = df["Categoría"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-        graf.columns = ["Categoría", "Cantidad"]
-
-        fig = px.bar(
-            graf,
-            x="Categoría",
-            y="Cantidad",
-            text="Cantidad",
-            title="Distribución por categoría",
-            color_discrete_sequence=["#39a96b"]
-        )
-
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font_color="#25164f"
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-if "Tipo de servicio" in df.columns:
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-
-    graf = df["Tipo de servicio"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-    graf.columns = ["Tipo de servicio", "Cantidad"]
-
-    fig = px.bar(
-        graf,
-        x="Cantidad",
-        y="Tipo de servicio",
-        orientation="h",
-        text="Cantidad",
-        title="Distribución por tipo de servicio",
-        color_discrete_sequence=["#39a96b"]
-    )
-
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font_color="#25164f"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+df_motivos = pd.DataFrame()
 
 if "Motivo de cobertura" in df.columns:
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    df_motivos = df["Motivo de cobertura"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
+    df_motivos.columns = ["Motivo de cobertura", "Cantidad"]
 
-    graf = df["Motivo de cobertura"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
-    graf.columns = ["Motivo de cobertura", "Cantidad"]
+    df_motivos = df_motivos[df_motivos["Motivo de cobertura"].isin(motivos)]
 
-    orden = [
-        "Vacaciones",
-        "Ausencia No Programada",
-        "Enfermedad",
-        "ART",
-        "Franco",
-        "Suspensión",
-        "Suspension",
-        "Otros"
-    ]
+    orden = {motivo: i for i, motivo in enumerate(motivos)}
+    df_motivos["orden"] = df_motivos["Motivo de cobertura"].map(orden)
+    df_motivos = df_motivos.sort_values("orden")
 
-    graf["orden"] = graf["Motivo de cobertura"].apply(
-        lambda x: orden.index(x) if x in orden else 999
-    )
-    graf = graf.sort_values("orden")
+if not df_motivos.empty:
+    col_motivo_graf, col_motivo_tabla = st.columns([2, 1])
 
-    fig = px.bar(
-        graf,
-        x="Cantidad",
-        y="Motivo de cobertura",
-        orientation="h",
-        text="Cantidad",
-        title="Motivos de cobertura",
-        color_discrete_sequence=["#7e57c2"]
-    )
+    with col_motivo_graf:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        fig = px.bar(
+            df_motivos,
+            x="Cantidad",
+            y="Motivo de cobertura",
+            orientation="h",
+            text="Cantidad",
+            title="Motivos de cobertura"
+        )
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#25164f"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font_color="#25164f"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_motivo_tabla:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.dataframe(
+            df_motivos[["Motivo de cobertura", "Cantidad"]],
+            use_container_width=True,
+            hide_index=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+else:
+    st.warning("No encontré datos de Motivo de cobertura.")
 
 # =========================
 # DETALLE
 # =========================
 
-st.markdown('<div class="seccion">Detalle de registros</div>', unsafe_allow_html=True)
+st.markdown('<div class="seccion">DETALLE DE REGISTROS</div>', unsafe_allow_html=True)
 
 columnas_detalle = [
     "Fecha",
