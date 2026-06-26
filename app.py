@@ -9,21 +9,70 @@ URL_DATOS = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4V
 
 st.markdown("""
 <style>
-.stApp { background: #f4f1f8; }
-.block-container { padding-top: 2rem; padding-left: 3rem; padding-right: 3rem; }
-[data-testid="stSidebar"] { background: linear-gradient(180deg, #25164f, #3d2b6f); }
-[data-testid="stSidebar"] * { color: white; }
+.stApp { 
+    background: #f4f1f8; 
+}
+
+.block-container { 
+    padding-top: 2rem; 
+    padding-left: 3rem; 
+    padding-right: 3rem; 
+}
+
+[data-testid="stSidebar"] { 
+    background: linear-gradient(180deg, #25164f, #3d2b6f); 
+}
+
+/* Títulos y etiquetas de filtros */
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p {
+    color: white !important;
+    font-weight: 700;
+}
+
+/* Inputs de filtros */
+[data-testid="stSidebar"] input {
+    color: black !important;
+    background-color: white !important;
+}
+
+/* Multiselect y select */
+[data-testid="stSidebar"] [data-baseweb="select"] {
+    background-color: white !important;
+    color: black !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="select"] * {
+    color: black !important;
+}
+
+/* Opciones desplegables */
+div[role="listbox"],
+div[role="option"] {
+    color: black !important;
+    background-color: white !important;
+}
+
+/* Placeholder */
+[data-testid="stSidebar"] input::placeholder {
+    color: #666 !important;
+}
 
 .titulo {
     font-size: 38px;
     font-weight: 900;
     color: #25164f;
 }
+
 .subtitulo {
     color: #5f5870;
     font-size: 15px;
     margin-bottom: 25px;
 }
+
 .seccion {
     font-size: 22px;
     font-weight: 900;
@@ -33,6 +82,7 @@ st.markdown("""
     padding-bottom: 6px;
     border-bottom: 3px solid #39a96b;
 }
+
 .card {
     background: white;
     border-radius: 18px;
@@ -42,18 +92,21 @@ st.markdown("""
     border-bottom: 5px solid #39a96b;
     margin-bottom: 16px;
 }
+
 .card-title {
     font-size: 13px;
     font-weight: 800;
     color: #25164f;
     min-height: 42px;
 }
+
 .card-value {
     font-size: 34px;
     font-weight: 900;
     color: #25164f;
     margin-top: 8px;
 }
+
 .chart-card {
     background: white;
     border-radius: 18px;
@@ -63,6 +116,7 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 @st.cache_data(ttl=300)
 def cargar_datos():
@@ -82,6 +136,7 @@ def cargar_datos():
     })
 
     return kpis, datos
+
 
 kpis, datos = cargar_datos()
 
@@ -105,9 +160,6 @@ def buscar_valor(nombre):
         return fila.iloc[0][col_resultado]
     return "-"
 
-# =========================
-# FILTROS
-# =========================
 
 df = datos.copy()
 
@@ -142,9 +194,6 @@ if "Apellido y Nombre" in df.columns:
     if buscar:
         df = df[df["Apellido y Nombre"].astype(str).str.contains(buscar, case=False, na=False)]
 
-# =========================
-# RESUMEN EJECUTIVO
-# =========================
 
 st.markdown('<div class="seccion">RESUMEN EJECUTIVO</div>', unsafe_allow_html=True)
 
@@ -177,9 +226,6 @@ for i in range(0, len(resumen), cols_por_fila):
             </div>
             """, unsafe_allow_html=True)
 
-# =========================
-# SERVICIOS
-# =========================
 
 st.markdown('<div class="seccion">SERVICIOS</div>', unsafe_allow_html=True)
 
@@ -239,18 +285,11 @@ if not df_servicios.empty:
 
     with col_tabla:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.dataframe(
-            df_servicios[["Servicio", "Cantidad", "%"]],
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(df_servicios[["Servicio", "Cantidad", "%"]], use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.warning("No encontré los indicadores de servicios en la Hoja 1.")
 
-# =========================
-# MOTIVO DE COBERTURA
-# =========================
 
 st.markdown('<div class="seccion">MOTIVO DE COBERTURA</div>', unsafe_allow_html=True)
 
@@ -270,7 +309,6 @@ df_motivos = pd.DataFrame()
 if "Motivo de cobertura" in df.columns:
     df_motivos = df["Motivo de cobertura"].astype(str).replace("nan", "Sin dato").value_counts().reset_index()
     df_motivos.columns = ["Motivo de cobertura", "Cantidad"]
-
     df_motivos = df_motivos[df_motivos["Motivo de cobertura"].isin(motivos)]
 
     orden = {motivo: i for i, motivo in enumerate(motivos)}
@@ -300,18 +338,11 @@ if not df_motivos.empty:
 
     with col_motivo_tabla:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.dataframe(
-            df_motivos[["Motivo de cobertura", "Cantidad"]],
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(df_motivos[["Motivo de cobertura", "Cantidad"]], use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.warning("No encontré datos de Motivo de cobertura.")
 
-# =========================
-# DETALLE
-# =========================
 
 st.markdown('<div class="seccion">DETALLE DE REGISTROS</div>', unsafe_allow_html=True)
 
