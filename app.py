@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from urllib.parse import quote
+import unicodedata
 
 st.set_page_config(page_title="Dashboard Personal Eventual", layout="wide")
 
@@ -13,26 +14,67 @@ BASE_URL = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK
 def url_hoja(nombre_hoja):
     return BASE_URL + quote(nombre_hoja)
 
+def normalizar(texto):
+    texto = str(texto).replace("\xa0", " ").strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = " ".join(texto.split())
+    return texto
+
+def preparar_columnas(df):
+    mapa = {}
+    for col in df.columns:
+        col_norm = normalizar(col)
+
+        if col_norm == "presto servicio":
+            mapa[col] = "Prestó Servicio"
+        elif col_norm == "tipo de servicio":
+            mapa[col] = "Tipo de servicio"
+        elif col_norm == "categoria":
+            mapa[col] = "Categoría"
+        elif col_norm == "jornal":
+            mapa[col] = "Jornal"
+        elif col_norm == "turno":
+            mapa[col] = "Turno"
+        elif col_norm == "estado":
+            mapa[col] = "Estado"
+        elif col_norm == "indicador":
+            mapa[col] = "Indicador"
+        elif col_norm == "resultado":
+            mapa[col] = "Resultado"
+
+    return df.rename(columns=mapa)
+
 @st.cache_data(ttl=300)
 def cargar_datos():
     kpis = pd.read_csv(url_hoja("KpIs"))
     datos = pd.read_csv(url_hoja("Datos Mensuales  EVANGELINA"))
     seguimiento = pd.read_csv(url_hoja("Seguimiento de Personal"))
 
-    kpis.columns = kpis.columns.astype(str).str.strip()
-    datos.columns = datos.columns.astype(str).str.strip()
-    seguimiento.columns = seguimiento.columns.astype(str).str.strip()
-
-    datos = datos.rename(columns={
-        "Tipo de servicio ": "Tipo de servicio",
-        "Presto Servicio": "Prestó Servicio"
-    })
+    kpis = preparar_columnas(kpis)
+    datos = preparar_columnas(datos)
+    seguimiento = preparar_columnas(seguimiento)
 
     return kpis, datos, seguimiento
 
 kpis, datos, seguimiento = cargar_datos()
 
-# Limpieza
+columnas_necesarias = ["Prestó Servicio", "Jornal", "Tipo de servicio", "Turno", "Categoría"]
+
+faltantes = [c for c in columnas_necesarias if c not in datos.columns]
+
+if faltantes:
+    st.error("Faltan columnas en la hoja Datos Mensuales EVANGELINA:")
+    st.write(faltantes)
+    st.write("Columnas encontradas:")
+    st.write(list(datos.columns))
+    st.stop()
+
+if "Estado" not in seguimiento.columns:
+    st.error("Falta la columna Estado en la hoja Seguimiento de Personal")
+    st.write(list(seguimiento.columns))
+    st.stop()
+
 datos["Prestó Servicio"] = datos["Prestó Servicio"].astype(str).str.strip()
 datos["Jornal"] = datos["Jornal"].astype(str).str.strip()
 datos["Tipo de servicio"] = datos["Tipo de servicio"].astype(str).str.strip()
@@ -40,16 +82,18 @@ datos["Turno"] = datos["Turno"].astype(str).str.strip()
 datos["Categoría"] = datos["Categoría"].astype(str).str.strip()
 seguimiento["Estado"] = seguimiento["Estado"].astype(str).str.strip()
 
-# KPIs
-jornales_solicitados = kpis.loc[
-    kpis["Indicador"].astype(str).str.contains("Jornales Solicitados", case=False, na=False),
-    "Resultado"
-].iloc[0]
+try:
+    jornales_solicitados = kpis.loc[
+        kpis["Indicador"].astype(str).str.contains("Jornales Solicitados", case=False, na=False),
+        "Resultado"
+    ].iloc[0]
+except:
+    jornales_solicitados = 0
 
 jornales_informados = len(datos)
 
 jornales_validados = datos[
-    datos["Prestó Servicio"].str.lower().str.contains("presto servicio", na=False)
+    datos["Prestó Servicio"].str.lower().str.contains("presto servicio|prestó servicio", na=False)
 ].shape[0]
 
 diferencia = jornales_informados - jornales_validados
@@ -64,7 +108,6 @@ no_convocar = seguimiento[seguimiento["Estado"].str.lower() == "no convocar"].sh
 
 cobertura = (jornales_validados / jornales_informados * 100) if jornales_informados > 0 else 0
 
-# Filtros
 st.sidebar.header("Filtros")
 
 tipo_servicio = st.sidebar.multiselect(
@@ -93,7 +136,6 @@ if turno:
 if categoria:
     df = df[df["Categoría"].isin(categoria)]
 
-# Tarjetas
 st.subheader("Indicadores principales")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -115,7 +157,6 @@ col11.metric("No convocar", no_convocar)
 
 st.divider()
 
-# Gráficos
 col_a, col_b = st.columns(2)
 
 with col_a:
