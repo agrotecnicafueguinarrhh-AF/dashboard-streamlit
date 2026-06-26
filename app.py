@@ -30,6 +30,7 @@ kpis, datos, seguimiento = cargar_datos()
 # Limpieza básica
 datos["Prestó Servicio"] = datos["Prestó Servicio"].astype(str).str.strip()
 datos["Jornal"] = datos["Jornal"].astype(str).str.strip()
+datos = datos.rename(columns={"Tipo de servicio ": "Tipo de servicio"})
 datos["Tipo de servicio"] = datos["Tipo de servicio"].astype(str).str.strip()
 seguimiento["Estado"] = seguimiento["Estado"].astype(str).str.strip()
 
