@@ -19,25 +19,39 @@ def cargar_datos():
     datos = pd.read_csv(url_hoja("Datos Mensuales  EVANGELINA"))
     seguimiento = pd.read_csv(url_hoja("Seguimiento de Personal"))
 
-    kpis.columns = kpis.columns.str.strip()
-    datos.columns = datos.columns.str.strip()
-    seguimiento.columns = seguimiento.columns.str.strip()
+    kpis.columns = kpis.columns.astype(str).str.strip()
+    datos.columns = datos.columns.astype(str).str.strip()
+    seguimiento.columns = seguimiento.columns.astype(str).str.strip()
+
+    datos = datos.rename(columns={
+        "Tipo de servicio ": "Tipo de servicio",
+        "Presto Servicio": "Prestó Servicio"
+    })
 
     return kpis, datos, seguimiento
 
 kpis, datos, seguimiento = cargar_datos()
 
-# Limpieza básica
+# Limpieza
 datos["Prestó Servicio"] = datos["Prestó Servicio"].astype(str).str.strip()
 datos["Jornal"] = datos["Jornal"].astype(str).str.strip()
-datos = datos.rename(columns={"Tipo de servicio ": "Tipo de servicio"})
 datos["Tipo de servicio"] = datos["Tipo de servicio"].astype(str).str.strip()
+datos["Turno"] = datos["Turno"].astype(str).str.strip()
+datos["Categoría"] = datos["Categoría"].astype(str).str.strip()
 seguimiento["Estado"] = seguimiento["Estado"].astype(str).str.strip()
 
-# KPIs principales
-jornales_solicitados = kpis.loc[kpis["Indicador"].astype(str).str.contains("Jornales Solicitados", case=False, na=False), "Resultado"].iloc[0]
+# KPIs
+jornales_solicitados = kpis.loc[
+    kpis["Indicador"].astype(str).str.contains("Jornales Solicitados", case=False, na=False),
+    "Resultado"
+].iloc[0]
+
 jornales_informados = len(datos)
-jornales_validados = datos[datos["Prestó Servicio"].str.lower() == "presto servicio"].shape[0]
+
+jornales_validados = datos[
+    datos["Prestó Servicio"].str.lower().str.contains("presto servicio", na=False)
+].shape[0]
+
 diferencia = jornales_informados - jornales_validados
 
 dobles = datos[datos["Jornal"].str.contains("Doble", case=False, na=False)].shape[0]
@@ -79,25 +93,22 @@ if turno:
 if categoria:
     df = df[df["Categoría"].isin(categoria)]
 
-# Tarjetas principales
+# Tarjetas
 st.subheader("Indicadores principales")
 
 col1, col2, col3, col4 = st.columns(4)
-
 col1.metric("Jornales solicitados", jornales_solicitados)
 col2.metric("Jornales informados GG", jornales_informados)
 col3.metric("Jornales validados", jornales_validados)
 col4.metric("Diferencia", diferencia)
 
 col5, col6, col7, col8 = st.columns(4)
-
 col5.metric("Dobles jornadas", dobles)
 col6.metric("Triples jornadas", triples)
 col7.metric("Jornales extras", extras)
 col8.metric("Cobertura real", f"{cobertura:.1f}%")
 
 col9, col10, col11 = st.columns(3)
-
 col9.metric("Recomendados", recomendados)
 col10.metric("Observados", observados)
 col11.metric("No convocar", no_convocar)
