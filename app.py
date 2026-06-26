@@ -4,12 +4,57 @@ import plotly.express as px
 
 st.set_page_config(page_title="Dashboard Personal Eventual", layout="wide")
 
-st.title("📊 Dashboard Personal Eventual")
-st.caption("Control interno de personal eventual - Grupo Gestión")
-
 URL_KPIS = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=0"
 URL_DATOS = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=1321247605"
 URL_SEGUIMIENTO = "https://docs.google.com/spreadsheets/d/1Ths5IKfLsLnBovb7l-Z-X8PgQ4VK6v0ombUThG375JE/export?format=csv&gid=1937869204"
+
+st.markdown("""
+<style>
+.main {
+    background-color: #eef8f4;
+}
+.block-container {
+    padding-top: 2rem;
+}
+.titulo {
+    font-size: 36px;
+    font-weight: 800;
+    color: #1f2937;
+}
+.subtitulo {
+    color: #6b7280;
+    font-size: 15px;
+    margin-bottom: 25px;
+}
+.card {
+    background-color: white;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+    border-left: 6px solid #8ee3a2;
+}
+.card-title {
+    font-size: 13px;
+    color: #6b7280;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.card-value {
+    font-size: 30px;
+    font-weight: 800;
+    color: #111827;
+}
+.seccion {
+    background-color: #1f2937;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 700;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_data(ttl=300)
 def cargar_datos():
@@ -21,145 +66,154 @@ def cargar_datos():
     datos.columns = datos.columns.astype(str).str.strip()
     seguimiento.columns = seguimiento.columns.astype(str).str.strip()
 
+    datos = datos.rename(columns={
+        "Presto Servicio": "Prestó Servicio",
+        "Tipo de servicio ": "Tipo de servicio",
+        "Categoria": "Categoría"
+    })
+
     return kpis, datos, seguimiento
 
 kpis, datos, seguimiento = cargar_datos()
 
-st.subheader("Indicadores principales")
+st.markdown('<div class="titulo">📊 Dashboard Personal Eventual</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitulo">Control interno de jornales, cobertura, desempeño y seguimiento de personal eventual</div>', unsafe_allow_html=True)
 
-# Detecta columnas de KPIs
-col_indicador = None
-col_resultado = None
+# Detectar columnas KPIs
+col_indicador = [c for c in kpis.columns if "indicador" in c.lower()][0]
+col_resultado = [c for c in kpis.columns if "resultado" in c.lower()][0]
 
-for col in kpis.columns:
-    if "indicador" in col.lower():
-        col_indicador = col
-    if "resultado" in col.lower():
-        col_resultado = col
+kpis_dict = dict(zip(kpis[col_indicador].astype(str), kpis[col_resultado]))
 
-if col_indicador is None or col_resultado is None:
-    st.error("No encontré las columnas Indicador y Resultado en la Hoja 1.")
-    st.write("Columnas encontradas:")
-    st.write(list(kpis.columns))
-    st.stop()
+def buscar_indicador(texto):
+    for k, v in kpis_dict.items():
+        if texto.lower() in k.lower():
+            return v
+    return 0
 
-kpis_limpios = kpis[[col_indicador, col_resultado]].dropna()
+# KPIs ordenados como gerente
+resumen = {
+    "Jornales solicitados": buscar_indicador("Jornales Solicitados"),
+    "Jornales informados GG": buscar_indicador("Jornales Informados"),
+    "Jornales validados": buscar_indicador("Jornales Validados"),
+    "Diferencia": buscar_indicador("Diferencia"),
+}
 
-# Tarjetas dinámicas
-cantidad_columnas = 4
-filas = [
-    kpis_limpios.iloc[i:i + cantidad_columnas]
-    for i in range(0, len(kpis_limpios), cantidad_columnas)
-]
+operativo = {
+    "Cobertura real": buscar_indicador("Cobertura"),
+    "No prestó servicio": buscar_indicador("No Prestó"),
+    "Dobles jornadas": buscar_indicador("Doble"),
+    "Triples jornadas": buscar_indicador("Triple"),
+}
 
-for fila in filas:
-    cols = st.columns(cantidad_columnas)
-    for i, (_, row) in enumerate(fila.iterrows()):
-        indicador = str(row[col_indicador])
-        resultado = row[col_resultado]
-        cols[i].metric(indicador, resultado)
+seguimiento_kpis = {
+    "Recomendados": buscar_indicador("Recomendado"),
+    "Observados": buscar_indicador("Observado"),
+    "No convocar": buscar_indicador("No Convocar"),
+}
 
-st.divider()
+def tarjeta(titulo, valor):
+    st.markdown(f"""
+    <div class="card">
+        <div class="card-title">{titulo}</div>
+        <div class="card-value">{valor}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Preparar hoja de datos
-datos.columns = datos.columns.astype(str).str.strip()
+st.markdown('<div class="seccion">Resumen ejecutivo</div>', unsafe_allow_html=True)
 
-# Renombres posibles
-datos = datos.rename(columns={
-    "Presto Servicio": "Prestó Servicio",
-    "Tipo de servicio ": "Tipo de servicio",
-    "Categoria": "Categoría"
-})
+cols = st.columns(4)
+for col, (titulo, valor) in zip(cols, resumen.items()):
+    with col:
+        tarjeta(titulo, valor)
+
+st.markdown('<div class="seccion">Control operativo</div>', unsafe_allow_html=True)
+
+cols = st.columns(4)
+for col, (titulo, valor) in zip(cols, operativo.items()):
+    with col:
+        tarjeta(titulo, valor)
+
+st.markdown('<div class="seccion">Calidad del personal</div>', unsafe_allow_html=True)
+
+cols = st.columns(3)
+for col, (titulo, valor) in zip(cols, seguimiento_kpis.items()):
+    with col:
+        tarjeta(titulo, valor)
 
 st.sidebar.header("Filtros")
 
 df = datos.copy()
 
-# Filtro fecha
 if "Fecha" in df.columns:
     df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
-    fechas_validas = df["Fecha"].dropna()
-
-    if not fechas_validas.empty:
-        fecha_min = fechas_validas.min()
-        fecha_max = fechas_validas.max()
-
-        rango_fechas = st.sidebar.date_input(
+    fechas = df["Fecha"].dropna()
+    if not fechas.empty:
+        rango = st.sidebar.date_input(
             "Rango de fechas",
-            value=(fecha_min, fecha_max),
-            min_value=fecha_min,
-            max_value=fecha_max
+            value=(fechas.min(), fechas.max()),
+            min_value=fechas.min(),
+            max_value=fechas.max()
         )
+        if len(rango) == 2:
+            df = df[(df["Fecha"] >= pd.to_datetime(rango[0])) & (df["Fecha"] <= pd.to_datetime(rango[1]))]
 
-        if len(rango_fechas) == 2:
-            desde = pd.to_datetime(rango_fechas[0])
-            hasta = pd.to_datetime(rango_fechas[1])
-            df = df[(df["Fecha"] >= desde) & (df["Fecha"] <= hasta)]
-
-# Filtros dinámicos
 for columna in ["Tipo de servicio", "Turno", "Categoría", "Jornal", "Prestó Servicio"]:
     if columna in df.columns:
         opciones = sorted(df[columna].dropna().astype(str).unique())
         seleccion = st.sidebar.multiselect(columna, opciones)
-
         if seleccion:
             df = df[df[columna].astype(str).isin(seleccion)]
 
-# Buscar colaborador
 if "Apellido y Nombre" in df.columns:
     buscar = st.sidebar.text_input("Buscar colaborador")
     if buscar:
         df = df[df["Apellido y Nombre"].astype(str).str.contains(buscar, case=False, na=False)]
 
-st.subheader("Gráficos")
+st.markdown('<div class="seccion">Análisis visual</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
 with col1:
     if "Prestó Servicio" in df.columns:
-        st.markdown("### Prestó Servicio")
         graf = df["Prestó Servicio"].astype(str).value_counts().reset_index()
         graf.columns = ["Estado", "Cantidad"]
-        fig = px.pie(graf, names="Estado", values="Cantidad", hole=0.4)
+        fig = px.pie(graf, names="Estado", values="Cantidad", hole=0.45)
+        fig.update_layout(title="Prestó servicio", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
 with col2:
     if "Jornal" in df.columns:
-        st.markdown("### Jornales")
         graf = df["Jornal"].astype(str).value_counts().reset_index()
         graf.columns = ["Jornal", "Cantidad"]
         fig = px.bar(graf, x="Jornal", y="Cantidad", text="Cantidad")
+        fig.update_layout(title="Tipo de jornal", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
 col3, col4 = st.columns(2)
 
 with col3:
     if "Turno" in df.columns:
-        st.markdown("### Distribución por turno")
         graf = df["Turno"].astype(str).value_counts().reset_index()
         graf.columns = ["Turno", "Cantidad"]
         fig = px.bar(graf, x="Turno", y="Cantidad", text="Cantidad")
+        fig.update_layout(title="Distribución por turno", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
 with col4:
     if "Categoría" in df.columns:
-        st.markdown("### Distribución por categoría")
         graf = df["Categoría"].astype(str).value_counts().reset_index()
         graf.columns = ["Categoría", "Cantidad"]
         fig = px.bar(graf, x="Categoría", y="Cantidad", text="Cantidad")
+        fig.update_layout(title="Distribución por categoría", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
 if "Tipo de servicio" in df.columns:
-    st.markdown("### Distribución por tipo de servicio")
     graf = df["Tipo de servicio"].astype(str).value_counts().reset_index()
     graf.columns = ["Tipo de servicio", "Cantidad"]
     fig = px.bar(graf, x="Cantidad", y="Tipo de servicio", orientation="h", text="Cantidad")
+    fig.update_layout(title="Distribución por tipo de servicio", paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)
 
-st.divider()
-
-st.subheader("Base filtrada")
+st.markdown('<div class="seccion">Detalle de registros</div>', unsafe_allow_html=True)
 st.dataframe(df, use_container_width=True)
-
-st.subheader("Hoja de indicadores completa")
-st.dataframe(kpis_limpios, use_container_width=True)
